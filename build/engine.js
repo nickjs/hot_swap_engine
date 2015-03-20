@@ -128,7 +128,12 @@
 
             virtual: require("virtual-dom/h"),
 
-            virtualDiff: require("virtual-dom/diff") };
+            virtualDiff: require("virtual-dom/diff"),
+
+            hotSwapComponent: function hotSwapComponent() {
+                this.level.constructor = MyLevel;
+                this.level.__proto__ = MyLevel.prototype;
+            } };
 
         var TRANSFORM = "TRANSFORM";
         var OBJECT = "OBJECT";

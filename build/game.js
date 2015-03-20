@@ -43,5 +43,3 @@ var MyLevel = (function () {
 
   return MyLevel;
 })();
-
-window.MyLevel = MyLevel;

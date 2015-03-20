@@ -38,5 +38,3 @@ class MyLevel {
     this.lightZ = Math.cos(time * 0.7) * 2
   }
 }
-
-window.MyLevel = MyLevel

@@ -116,6 +116,11 @@ var r3 = {
   virtual: require('virtual-dom/h'),
 
   virtualDiff: require('virtual-dom/diff'),
+
+  hotSwapComponent() {
+    this.level.constructor = MyLevel
+    this.level.__proto__ = MyLevel.prototype
+  },
 }
 
 const TRANSFORM = 'TRANSFORM'

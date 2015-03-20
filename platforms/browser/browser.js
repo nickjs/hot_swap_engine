@@ -21,6 +21,8 @@ var platform = {
     this.render = this.render.bind(this)
   },
 
+  reloadScript: Date.now(),
+
   render() {
     requestAnimationFrame(this.render)
 
@@ -28,6 +30,23 @@ var platform = {
 
     this.renderer.render(r3.level.concreteRoot, r3.level.virtualRoot.properties.camera)
     this.stats.update()
+
+    if (Date.now() - this.reloadScript > 3000) {
+      console.log('reloading')
+      this.reloadScript = Date.now()
+      var script = document.createElement('script')
+      script.src = '/build/game.js'
+      script.onload = () => {
+        try {
+          r3.hotSwapComponent()
+          script.parentNode.removeChild(script)
+        } catch (e) {
+          console.error(e)
+        }
+      }
+
+      document.head.appendChild(script)
+    }
   },
 
   createConcrete(node) {
