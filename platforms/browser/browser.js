@@ -34,25 +34,6 @@ var platform = {
     return platform.tags[node.tagName](node)
   },
 
-  // applyPatch(diff) {
-  //   for (var index in diff) {
-  //     if (index === 'a') continue
-  //     var info = diff[index],
-  //         patch = info.patch,
-  //         node = info.vNode,
-  //         shouldApplyTransform = false
-
-  //     for (var key in patch) {
-  //       node.properties[key] = patch[key]
-  //       if (r3.transformKeys.indexOf(key) !== -1)
-  //         shouldApplyTransform = true
-  //     }
-
-  //     if (shouldApplyTransform)
-  //       applyTransform(node.concrete, node)
-  //   }
-  // },
-
   applyTransform(object, node) {
     if (node.properties.x !== undefined) object.position.x = node.properties.x
     if (node.properties.y !== undefined) object.position.y = node.properties.y
