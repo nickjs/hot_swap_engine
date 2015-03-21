@@ -23,6 +23,10 @@ var platform = {
 
   reloadScript: Date.now(),
 
+  play() {
+    this.render()
+  },
+
   render() {
     requestAnimationFrame(this.render)
 
@@ -50,10 +54,26 @@ var platform = {
   },
 
   createConcrete(node) {
-    return platform.tags[node.tagName](node)
+    var def = platform.tags[node.tagName]
+    return def.create(node)
   },
 
-  applyTransform(object, node) {
+  addToParent(parentchild) {
+    var parent = parentchild[0]
+    var child = parentchild[1]
+
+    if (parent.concrete instanceof THREE.Object3D && child.concrete instanceof THREE.Object3D) {
+      parent.concrete.add(child.concrete)
+    }
+  },
+
+  applyPatch(node) {
+    var def = platform.tags[node.tagName]
+    if (def.update) def.update(node.concrete, node)
+  },
+
+  applyTransform(node) {
+    var object = node.concrete
     if (node.properties.x !== undefined) object.position.x = node.properties.x
     if (node.properties.y !== undefined) object.position.y = node.properties.y
     if (node.properties.z !== undefined) object.position.z = node.properties.z
@@ -75,7 +95,8 @@ var platform = {
     }
   },
 
-  applyObject(object, node) {
+  applyObject(node) {
+    var object = node.concrete
     if (node.properties.name !== undefined) object.name = node.properties.name
     if (node.properties.visible !== undefined) object.visible = node.properties.visible
     if (node.properties.castShadow !== undefined) object.castShadow = node.properties.castShadow
@@ -109,76 +130,104 @@ platform.lightTypes = {
 }
 
 platform.tags = {
-  SCENE(node) {
-    var scene = new THREE.Scene
-    if (node.properties.camera)
-      scene.add(node.properties.camera)
-    return scene
+  SCENE: {
+    create(node) {
+      var scene = new THREE.Scene
+      if (node.properties.camera)
+        scene.add(node.properties.camera)
+      return scene
+    },
   },
 
-  OBJECT(node) {
-    return new THREE.Object3D
+  OBJECT: {
+    create(node) {
+      return new THREE.Object3D
+    },
   },
 
-  MESH(node) {
-    var geometry = node.properties.geometry
-    var material = node.properties.material
-    return new THREE.Mesh(geometry, material)
+  MESH: {
+    create(node) {
+      var geometry = node.properties.geometry
+      var material = node.properties.material
+      return new THREE.Mesh(geometry, material)
+    },
   },
 
-  GEOMETRY(node) {
-    var geometry;
-    switch (node.properties.type.toLowerCase()) {
-      case 'cube':
-        var size = node.properties.size || 1
-        geometry = new THREE.BoxGeometry(size, size, size)
-        break
-      case 'sphere':
-        var radius = node.properties.radius || 1
-        geometry = new THREE.SphereGeometry(radius)
-        break
-      case 'plane':
-        var size = node.properties.size || 1
-        geometry = new THREE.PlaneGeometry(size, size)
-        break
-    }
+  GEOMETRY: {
+    create(node) {
+      var geometry;
+      switch (node.properties.type.toLowerCase()) {
+        case 'cube':
+          var size = node.properties.size || 1
+          geometry = new THREE.BoxGeometry(size, size, size)
+          break
+        case 'sphere':
+          var radius = node.properties.radius || 1
+          geometry = new THREE.SphereGeometry(radius)
+          break
+        case 'plane':
+          var size = node.properties.size || 1
+          geometry = new THREE.PlaneGeometry(size, size)
+          break
+      }
 
-    return geometry
+      return geometry
+    },
   },
 
-  MATERIAL(node) {
-    var props = {}
+  MATERIAL: {
+    create(node) {
+      var type = node.properties.type.toLowerCase()
+      var materialClass = platform.materialTypes[type]
+      if (!materialClass) throw "Could not find material type " + type
 
-    r3.tags.MATERIAL.props.forEach(function(prop) {
-      if (node.properties[prop] !== undefined)
-        props[prop] = node.properties[prop]
-    })
+      var material = new materialClass()
+      this.update(material, node)
 
-    var type = node.properties.type.toLowerCase()
-    if (type == 'wireframe') props.wireframe = true
+      return material
+    },
 
-    var materialClass = platform.materialTypes[type]
-    if (!materialClass) throw "Could not find material type " + type
+    update(material, node) {
+      var props = {}
+      var needsUpdate = true
 
-    return new materialClass(props)
+      r3.tags.MATERIAL.props.forEach(function(prop) {
+        var value = node.properties[prop]
+        if (value !== undefined && value !== material[prop]) {
+          props[prop] = node.properties[prop]
+          needsUpdate = true
+        }
+      })
+
+      if (node.properties.type == 'wireframe') props.wireframe = true
+
+      if (needsUpdate) {
+        material.setValues(props)
+        material.needsUpdate = true
+      }
+    },
   },
 
-  CAMERA(node) {
-    if (node.properties.type == 'orthographic')
-      return new THREE.OrthographicCamera()
-    else
-      return new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000)
+  CAMERA: {
+    create(node) {
+      if (node.properties.type == 'orthographic')
+        return new THREE.OrthographicCamera()
+      else
+        return new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000)
+    },
   },
 
-  LIGHT(node) {
-    var type = node.properties.type.toLowerCase()
-    var lightClass = platform.lightTypes[type]
-    if (!lightClass) throw "Could not find light type " + type
+  LIGHT: {
+    create(node) {
+      var type = node.properties.type.toLowerCase()
+      var lightClass = platform.lightTypes[type]
+      if (!lightClass) throw "Could not find light type " + type
 
-    return new lightClass(node.properties.color, node.properties.intensity, node.properties.distance)
-    // for (var key in props)
-      // light[key] = props[key]
-  }
+      return new lightClass(node.properties.color, node.properties.intensity, node.properties.distance)
+      // for (var key in props)
+        // light[key] = props[key]
+    },
+  },
 };
 
 module.exports = platform

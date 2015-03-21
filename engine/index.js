@@ -4,7 +4,7 @@ var r3 = {
   },
 
   play() {
-    r3.platform.render()
+    r3.platform.play(this.level)
   },
 
   tick(delta) {
@@ -55,15 +55,17 @@ var r3 = {
     node.concrete = concrete
 
     if (def.props.indexOf(OBJECT) !== -1) {
-      r3.platform.applyObject(concrete, node)
+      r3.platform.applyObject(node)
     }
 
     if (node.children) {
       node.children.forEach(function(child) {
         if (!child.madeProp) {
-          var concreteChild = r3.createConcrete(child)
-          if (concrete.add) concrete.add(concreteChild)
+          r3.createConcrete(child)
         }
+
+        if (child.concrete)
+          r3.platform.addToParent([node, child])
       })
     }
 
@@ -75,7 +77,7 @@ var r3 = {
     var def = node.definition
 
     if (def.props.indexOf(TRANSFORM) !== -1 || def.props.indexOf(OBJECT) !== -1) {
-      r3.platform.applyTransform(node.concrete, node)
+      r3.platform.applyTransform(node)
     }
 
     if (node.children) {
@@ -97,7 +99,7 @@ var r3 = {
           shouldApplyObject = false
 
       for (var key in patch) {
-        if (def.children && def.children.indexOf(key) !== -1) continue
+        if (!patch[key] && def.children && def.children.indexOf(key) !== -1) continue
 
         node.properties[key] = patch[key]
         if (!shouldApplyTransform && r3.tags.TRANSFORM.props.indexOf(key) !== -1)
@@ -106,10 +108,12 @@ var r3 = {
           shouldApplyObject = true
       }
 
+      r3.platform.applyPatch(node)
+
       if (shouldApplyObject)
-        r3.platform.applyObject(node.concrete, node)
+        r3.platform.applyObject(node)
       if (shouldApplyTransform)
-        r3.platform.applyTransform(node.concrete, node)
+        r3.platform.applyTransform(node)
     }
   },
 

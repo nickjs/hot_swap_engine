@@ -21,7 +21,7 @@
             },
 
             play: function play() {
-                r3.platform.render();
+                r3.platform.play(this.level);
             },
 
             tick: function tick(delta) {
@@ -72,15 +72,16 @@
                 node.concrete = concrete;
 
                 if (def.props.indexOf(OBJECT) !== -1) {
-                    r3.platform.applyObject(concrete, node);
+                    r3.platform.applyObject(node);
                 }
 
                 if (node.children) {
                     node.children.forEach(function (child) {
                         if (!child.madeProp) {
-                            var concreteChild = r3.createConcrete(child);
-                            if (concrete.add) concrete.add(concreteChild);
+                            r3.createConcrete(child);
                         }
+
+                        if (child.concrete) r3.platform.addToParent([node, child]);
                     });
                 }
 
@@ -92,7 +93,7 @@
                 var def = node.definition;
 
                 if (def.props.indexOf(TRANSFORM) !== -1 || def.props.indexOf(OBJECT) !== -1) {
-                    r3.platform.applyTransform(node.concrete, node);
+                    r3.platform.applyTransform(node);
                 }
 
                 if (node.children) {
@@ -114,15 +115,17 @@
                         shouldApplyObject = false;
 
                     for (var key in patch) {
-                        if (def.children && def.children.indexOf(key) !== -1) continue;
+                        if (!patch[key] && def.children && def.children.indexOf(key) !== -1) continue;
 
                         node.properties[key] = patch[key];
                         if (!shouldApplyTransform && r3.tags.TRANSFORM.props.indexOf(key) !== -1) shouldApplyTransform = true;
                         if (!shouldApplyObject && r3.tags.OBJECT.props.indexOf(key) !== -1) shouldApplyObject = true;
                     }
 
-                    if (shouldApplyObject) r3.platform.applyObject(node.concrete, node);
-                    if (shouldApplyTransform) r3.platform.applyTransform(node.concrete, node);
+                    r3.platform.applyPatch(node);
+
+                    if (shouldApplyObject) r3.platform.applyObject(node);
+                    if (shouldApplyTransform) r3.platform.applyTransform(node);
                 }
             },
 
@@ -1241,6 +1244,10 @@
 
             reloadScript: Date.now(),
 
+            play: function play() {
+                this.render();
+            },
+
             render: function render() {
                 requestAnimationFrame(this.render);
 
@@ -1268,10 +1275,26 @@
             },
 
             createConcrete: function createConcrete(node) {
-                return platform.tags[node.tagName](node);
+                var def = platform.tags[node.tagName];
+                return def.create(node);
             },
 
-            applyTransform: function applyTransform(object, node) {
+            addToParent: function addToParent(parentchild) {
+                var parent = parentchild[0];
+                var child = parentchild[1];
+
+                if (parent.concrete instanceof THREE.Object3D && child.concrete instanceof THREE.Object3D) {
+                    parent.concrete.add(child.concrete);
+                }
+            },
+
+            applyPatch: function applyPatch(node) {
+                var def = platform.tags[node.tagName];
+                if (def.update) def.update(node.concrete, node);
+            },
+
+            applyTransform: function applyTransform(node) {
+                var object = node.concrete;
                 if (node.properties.x !== undefined) object.position.x = node.properties.x;
                 if (node.properties.y !== undefined) object.position.y = node.properties.y;
                 if (node.properties.z !== undefined) object.position.z = node.properties.z;
@@ -1293,7 +1316,8 @@
                 }
             },
 
-            applyObject: function applyObject(object, node) {
+            applyObject: function applyObject(node) {
+                var object = node.concrete;
                 if (node.properties.name !== undefined) object.name = node.properties.name;
                 if (node.properties.visible !== undefined) object.visible = node.properties.visible;
                 if (node.properties.castShadow !== undefined) object.castShadow = node.properties.castShadow;
@@ -1324,77 +1348,98 @@
             spot: THREE.SpotLight };
 
         platform.tags = {
-            SCENE: function SCENE(node) {
-                var scene = new THREE.Scene();
-                if (node.properties.camera) scene.add(node.properties.camera);
-                return scene;
-            },
+            SCENE: {
+                create: function create(node) {
+                    var scene = new THREE.Scene();
+                    if (node.properties.camera) scene.add(node.properties.camera);
+                    return scene;
+                } },
 
-            OBJECT: function OBJECT(node) {
-                return new THREE.Object3D();
-            },
+            OBJECT: {
+                create: function create(node) {
+                    return new THREE.Object3D();
+                } },
 
-            MESH: function MESH(node) {
-                var geometry = node.properties.geometry;
-                var material = node.properties.material;
-                return new THREE.Mesh(geometry, material);
-            },
+            MESH: {
+                create: function create(node) {
+                    var geometry = node.properties.geometry;
+                    var material = node.properties.material;
+                    return new THREE.Mesh(geometry, material);
+                } },
 
-            GEOMETRY: function GEOMETRY(node) {
-                var geometry;
-                switch (node.properties.type.toLowerCase()) {
-                    case "cube":
-                        var size = node.properties.size || 1;
-                        geometry = new THREE.BoxGeometry(size, size, size);
-                        break;
-                    case "sphere":
-                        var radius = node.properties.radius || 1;
-                        geometry = new THREE.SphereGeometry(radius);
-                        break;
-                    case "plane":
-                        var size = node.properties.size || 1;
-                        geometry = new THREE.PlaneGeometry(size, size);
-                        break;
-                }
+            GEOMETRY: {
+                create: function create(node) {
+                    var geometry;
+                    switch (node.properties.type.toLowerCase()) {
+                        case "cube":
+                            var size = node.properties.size || 1;
+                            geometry = new THREE.BoxGeometry(size, size, size);
+                            break;
+                        case "sphere":
+                            var radius = node.properties.radius || 1;
+                            geometry = new THREE.SphereGeometry(radius);
+                            break;
+                        case "plane":
+                            var size = node.properties.size || 1;
+                            geometry = new THREE.PlaneGeometry(size, size);
+                            break;
+                    }
 
-                return geometry;
-            },
+                    return geometry;
+                } },
 
-            MATERIAL: function MATERIAL(node) {
-                var props = {};
+            MATERIAL: {
+                create: function create(node) {
+                    var type = node.properties.type.toLowerCase();
+                    var materialClass = platform.materialTypes[type];
+                    if (!materialClass) throw "Could not find material type " + type;
 
-                r3.tags.MATERIAL.props.forEach(function (prop) {
-                    if (node.properties[prop] !== undefined) props[prop] = node.properties[prop];
-                });
+                    var material = new materialClass();
+                    this.update(material, node);
 
-                var type = node.properties.type.toLowerCase();
-                if (type == "wireframe") props.wireframe = true;
+                    return material;
+                },
 
-                var materialClass = platform.materialTypes[type];
-                if (!materialClass) throw "Could not find material type " + type;
+                update: function update(material, node) {
+                    var props = {};
+                    var needsUpdate = true;
 
-                return new materialClass(props);
-            },
+                    r3.tags.MATERIAL.props.forEach(function (prop) {
+                        var value = node.properties[prop];
+                        if (value !== undefined && value !== material[prop]) {
+                            props[prop] = node.properties[prop];
+                            needsUpdate = true;
+                        }
+                    });
 
-            CAMERA: function CAMERA(node) {
-                if (node.properties.type == "orthographic") {
-                    return new THREE.OrthographicCamera();
-                } else {
-                    return new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-                }
-            },
+                    if (node.properties.type == "wireframe") props.wireframe = true;
 
-            LIGHT: function LIGHT(node) {
-                var type = node.properties.type.toLowerCase();
-                var lightClass = platform.lightTypes[type];
-                if (!lightClass) throw "Could not find light type " + type;
+                    if (needsUpdate) {
+                        material.setValues(props);
+                        material.needsUpdate = true;
+                    }
+                } },
 
-                return new lightClass(node.properties.color, node.properties.intensity, node.properties.distance)
-                // for (var key in props)
-                // light[key] = props[key]
-                ;
-            }
-        };
+            CAMERA: {
+                create: function create(node) {
+                    if (node.properties.type == "orthographic") {
+                        return new THREE.OrthographicCamera();
+                    } else {
+                        return new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+                    }
+                } },
+
+            LIGHT: {
+                create: function create(node) {
+                    var type = node.properties.type.toLowerCase();
+                    var lightClass = platform.lightTypes[type];
+                    if (!lightClass) throw "Could not find light type " + type;
+
+                    return new lightClass(node.properties.color, node.properties.intensity, node.properties.distance)
+                    // for (var key in props)
+                    // light[key] = props[key]
+                    ;
+                } } };
 
         module.exports = platform;
         r3.platform = platform;
