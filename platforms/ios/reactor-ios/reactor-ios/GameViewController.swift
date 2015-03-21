@@ -175,6 +175,8 @@ func colorFromHexInt(hex: UInt) -> UIColor {
             self.fetchScript("http://localhost:4242/build/game.js")
             self.context.evaluateScript("r3.initialize(); r3.loadLevel(MyLevel); r3.play();")
         }
+        
+        NSTimer.scheduledTimerWithTimeInterval(3.0, target: self, selector: Selector("refreshScript"), userInfo: nil, repeats: true)
     }
     
     func fetchScript(url: NSString) {
@@ -183,6 +185,11 @@ func colorFromHexInt(hex: UInt) -> UIColor {
         let script = NSString(data: data, encoding: NSUTF8StringEncoding)
         
         self.context.evaluateScript(script)
+    }
+    
+    func refreshScript() {
+        self.fetchScript("http://localhost:4242/build/game.js")
+        self.context.evaluateScript("r3.hotSwapComponent()")
     }
     
     func sendTick(time: NSTimeInterval) {
@@ -226,6 +233,7 @@ func colorFromHexInt(hex: UInt) -> UIColor {
     func applyTransform(node: NSDictionary) {
         let props = node["properties"] as NSDictionary
         let object = node["concrete"] as SCNNode
+        
         if props["x"] != nil { object.position.x = props["x"] as Float }
         if props["y"] != nil { object.position.y = props["y"] as Float }
         if props["z"] != nil { object.position.z = props["z"] as Float }
